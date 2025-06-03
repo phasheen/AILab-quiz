@@ -1,326 +1,186 @@
-# Flexible Deep Learning Quiz Framework
+# MLP Deep Learning Framework for Tabular Data
 
-A comprehensive, modular PyTorch-based framework for machine learning quizzes that automatically adapts to different data types (images, text, tabular) and provides optimal model configurations.
+This project provides a flexible and streamlined framework for training and evaluating Multi-Layer Perceptron (MLP) models on tabular datasets. It handles data analysis, preprocessing, model training, and prediction, focusing exclusively on MLP-based tasks.
 
-## 🚀 Features
+## Features
 
-- **Auto-Detection**: Automatically detects data type and provides optimal configurations
-- **Multi-Modal Support**: Handles images, text, and tabular data seamlessly
-- **Transfer Learning**: Built-in support for pre-trained models (ResNet, BERT, etc.)
-- **Functional Programming**: Modular, reusable components following functional principles
-- **Easy Integration**: Simple API for both CLI and Jupyter notebook usage
-- **Production Ready**: Includes early stopping, learning rate scheduling, and model checkpointing
+-   **Data Analysis**: Automatically analyzes tabular datasets to extract key information like feature distributions, number of classes, and sample counts.
+-   **Data Preprocessing**: Handles numerical feature normalization and target variable encoding for classification/regression.
+-   **MLP Model**: Implements a configurable MLP model (`MLPClassifier`) supporting both classification and regression tasks.
+-   **Training Pipeline**: Includes standard training loops, optimization, learning rate scheduling, and early stopping.
+-   **Evaluation**: Generates predictions and saves them in a submission-friendly format.
+-   **Configuration**: Uses JSON files for easy experiment configuration.
+-   **Extensible**: Built with modularity in mind (though now focused on MLP).
 
-## 📁 Project Structure
+## Project Structure
 
 ```
-quiz/
-├── requirements.txt          # Dependencies
-├── main.py                  # CLI entry point
+.
+├── main.py                 # Main script to run the framework
 ├── README.md               # This file
-├── example_notebook.ipynb  # Interactive example
+├── example_configs/
+│   └── mlp_config.json     # Example configuration for an MLP task
+├── sample_data/
+│   └── sample_mlp_data.csv # Sample tabular data for testing
 ├── src/
 │   ├── data/
-│   │   ├── __init__.py
-│   │   └── dataset.py      # Flexible dataset implementations
+│   │   └── dataset.py      # TabularDataset and data loading utilities
 │   ├── models/
-│   │   ├── __init__.py
-│   │   └── architectures.py # Model architectures
+│   │   └── architectures.py # MLPClassifier and model creation utilities
 │   └── utils/
-│       ├── __init__.py
-│       ├── training.py     # Training utilities
-│       └── data_utils.py   # Data processing utilities
-└── outputs/               # Generated outputs (created automatically)
+│       ├── data_utils.py   # Data analysis, splitting, loading utilities
+│       └── training.py     # Training loop, prediction, and related utilities
+└── outputs/                  # Default directory for saving results (models, logs, predictions)
 ```
 
-## 🛠️ Installation
+## Prerequisites
 
-1. **Install dependencies:**
+-   Python 3.8+
+-   PyTorch
+-   Pandas
+-   NumPy
+-   scikit-learn (for StandardScaler and potential future utilities)
+-   Matplotlib (for plotting training history)
+
+Install dependencies using:
 ```bash
-pip install -r requirements.txt
+pip install torch pandas numpy scikit-learn matplotlib
 ```
 
-2. **Download NLTK data (for text processing):**
-```python
-import nltk
-nltk.download('punkt')
-nltk.download('punkt_tab')
-```
+## Getting Started
 
-## 📊 Supported Data Types
+### 1. Prepare Your Data
 
-### 1. Image Data
-- **Folder Structure**: Organized by class folders or CSV with image paths
-- **Formats**: JPG, PNG, BMP, TIFF
-- **Models**: ResNet, EfficientNet, Vision Transformer
-- **Features**: Auto data augmentation, transfer learning
+Your dataset should be a single CSV file.
+-   One column must be designated as the target variable.
+-   All other columns used for training should be numeric (or will be attempted to be converted/ignored if not specified in `feature_columns`).
+-   See `sample_data/sample_mlp_data.csv` for an example. This is a snippet of the Iris dataset.
 
-### 2. Text Data
-- **Format**: CSV with text and label columns
-- **Models**: BERT, RoBERTa, DistilBERT
-- **Features**: Automatic tokenization, sequence padding
+### 2. Configure Your Experiment
 
-### 3. Tabular Data
-- **Format**: CSV with numerical/categorical features
-- **Models**: Multi-layer Perceptron (MLP)
-- **Features**: Auto preprocessing, scaling, encoding
+Create a JSON configuration file (or modify `example_configs/mlp_config.json`).
 
-## 🎯 Quick Start
+Key configuration options in `mlp_config.json`:
 
-### Method 1: Command Line Interface
+-   `data_type`: Must be `"tabular"`.
+-   `model_type`: Must be `"mlp"`.
+-   `task_type`: `"classification"` or `"regression"`.
+-   `target_column`: Name of the target variable column in your CSV.
+-   `feature_columns`: (Optional) List of feature column names. If `null` or omitted, all numeric columns except the `target_column` are used.
+-   `normalize`: `true` or `false` to enable/disable feature normalization.
+-   `hidden_dims`: List of integers for the sizes of hidden layers in the MLP (e.g., `[128, 64]`).
+-   `dropout`: Dropout rate (e.g., `0.3`).
+-   `batch_size`, `learning_rate`, `num_epochs`: Standard training parameters.
+-   `optimizer_config`, `scheduler_config`, `early_stopping`: Configurations for optimizer, LR scheduler, and early stopping.
+-   `input_dim`, `num_classes`: These are typically determined automatically during the analysis/training phase. However, if you are running in `predict_only` mode *without* a preceding training run that saved a configuration, you **must** provide these values in the config based on the model you are loading (e.g., from a `final_run_config.json` of a previous training). `num_classes` is for classification; for regression, the model head defaults to 1 output.
 
-#### 1. Analyze Your Data
-```bash
-python main.py --data_path ./your_dataset --analyze_only
-```
-
-#### 2. Train Model
-```bash
-python main.py --data_path ./your_dataset --output_dir ./results
-```
-
-#### 3. Predict Only
-```bash
-python main.py --predict_only --model_path ./results/best_model.pth --test_path ./test_data --config ./results/final_config.json
-```
-
-### Method 2: Jupyter Notebook
-
-1. Open `example_notebook.ipynb`
-2. Change `DATA_PATH` to your dataset path
-3. Run all cells
-
-### Method 3: Python Script
-
-```python
-from src.utils.data_utils import load_and_analyze_data, get_recommended_config
-from src.data.dataset import create_dataset
-from src.models.architectures import create_model
-from src.utils.training import train_model
-
-# Analyze data
-data_analysis = load_and_analyze_data("./your_dataset")
-config = get_recommended_config(data_analysis)
-
-# Create dataset and model
-dataset = create_dataset(data_type=config['data_type'], data_path="./your_dataset")
-model = create_model(model_type=config['model_type'], num_classes=config['num_classes'])
-
-# Train (see example_notebook.ipynb for complete example)
-```
-
-## 📋 Configuration Options
-
-The framework automatically generates optimal configurations, but you can customize:
-
-### Image Classification
-```json
-{
-  "data_type": "image",
-  "model_type": "image_classifier",
-  "backbone": "resnet18",
-  "batch_size": 32,
-  "learning_rate": 1e-3,
-  "num_epochs": 50,
-  "early_stopping": {"patience": 10}
-}
-```
-
-### Text Classification
-```json
-{
-  "data_type": "text",
-  "model_type": "text_classifier",
-  "model_name": "bert-base-uncased",
-  "max_length": 256,
-  "batch_size": 16,
-  "learning_rate": 2e-5,
-  "num_epochs": 10
-}
-```
-
-### Tabular Data
+**Example `mlp_config.json` for Iris-like classification:**
 ```json
 {
   "data_type": "tabular",
   "model_type": "mlp",
-  "hidden_dims": [256, 128],
-  "batch_size": 64,
-  "learning_rate": 1e-3,
-  "num_epochs": 100
+  "task_type": "classification",
+  "target_column": "target",
+  "feature_columns": ["feature1", "feature2", "feature3", "feature4"],
+  "normalize": true,
+  "hidden_dims": [10, 8],
+  "dropout": 0.1,
+  "batch_size": 5,
+  "learning_rate": 0.01,
+  "num_epochs": 100,
+  "optimizer_config": {
+    "optimizer_type": "adam",
+    "learning_rate": 0.01
+  },
+  "scheduler_config": null,
+  "early_stopping": {
+    "patience": 10,
+    "min_delta": 0.001
+  },
+  "train_ratio": 0.7,
+  "val_ratio": 0.15,
+  "test_ratio": 0.15,
+  "input_dim": null, // Will be auto-filled during training
+  "num_classes": null // Will be auto-filled during training
 }
 ```
 
-## 📈 Expected Outputs
+### 3. Run the Framework
 
-After running the framework, you'll get:
+Use `main.py` to run various stages:
 
-```
-outputs/
-├── data_analysis.json      # Dataset statistics and insights
-├── final_config.json       # Configuration used for training
-├── best_model.pth         # Trained model weights
-├── training_history.json   # Training metrics per epoch
-├── training_history.png    # Training plots
-├── data_distribution.png   # Data visualization
-└── predictions.csv         # Test set predictions
-```
-
-## 🎲 Usage Examples
-
-### Example 1: CIFAR-10 Style Dataset
+**a) Analyze Data Only:**
 ```bash
-# Dataset structure:
-# dataset/
-# ├── train/
-# │   ├── class1/
-# │   │   ├── img1.jpg
-# │   │   └── img2.jpg
-# │   └── class2/
-# │       ├── img3.jpg
-# │       └── img4.jpg
-
-python main.py --data_path ./dataset/train
+python main.py \
+    --data_path sample_data/sample_mlp_data.csv \
+    --config example_configs/mlp_config.json \
+    --output_dir outputs/mlp_analysis_example \
+    --analyze_only
 ```
+This will generate a `data_analysis.json` and `data_distribution.png` in the output directory.
 
-### Example 2: Text Classification
+**b) Train a Model:**
 ```bash
-# CSV format:
-# text,label
-# "This is great!",positive
-# "This is bad!",negative
+python main.py \
+    --data_path sample_data/sample_mlp_data.csv \
+    --config example_configs/mlp_config.json \
+    --output_dir outputs/mlp_training_example
+```
+This will:
+1.  Analyze the data.
+2.  Train the MLP model based on the configuration.
+3.  Save the best model (`best_model.pth`), training history (`training_history.json`, `training_history.png`), and the final configuration used (`final_run_config.json`) in the output directory.
+4.  Generate predictions on the test split and save them (`predictions.csv`).
 
-python main.py --data_path ./sentiment_data.csv
+**c) Predict with a Pre-trained Model:**
+
+First, ensure your configuration file (`example_configs/mlp_config.json` or a copy) has the correct `input_dim` and `num_classes` that match the pre-trained model. You can find these in the `final_run_config.json` from the training output. For the `sample_mlp_data.csv` example, `input_dim` would be 4, and `num_classes` would be 3.
+
+**Example `mlp_config_for_prediction.json` (after training the sample):**
+```json
+{
+  "data_type": "tabular",
+  "model_type": "mlp",
+  "task_type": "classification",
+  "target_column": "target",
+  "feature_columns": ["feature1", "feature2", "feature3", "feature4"],
+  "normalize": true, // Ensure this matches training
+  "hidden_dims": [10, 8], // Must match trained model
+  "dropout": 0.1, // Must match trained model
+  "batch_size": 5,
+  // LR, epochs, optimizer etc. are not used for prediction but config structure is kept
+  "input_dim": 4,     // Crucial: Set from trained model's config
+  "num_classes": 3    // Crucial: Set from trained model's config (for classification)
+}
 ```
 
-### Example 3: Tabular Classification
+Then run:
 ```bash
-# CSV format:
-# feature1,feature2,feature3,target
-# 1.2,3.4,5.6,0
-# 2.3,4.5,6.7,1
-
-python main.py --data_path ./tabular_data.csv
+python main.py \
+    --data_path path/to/your/new_test_data.csv \
+    --config path/to/your/mlp_config_for_prediction.json \
+    --output_dir outputs/mlp_prediction_example \
+    --model_path outputs/mlp_training_example/best_model.pth \
+    --test_path path/to/your/new_test_data.csv \
+    --predict_only
 ```
+(Note: For simplicity, `data_path` is still required by the argument parser but not directly used in `predict_only` mode if `test_path` is provided. `test_path` is the actual data source for predictions.) *Correction*: `data_path` in `predict_only` mode is used to prepare the test dataset via `prepare_datasets(args.test_path, config)` if `args.test_path` is given. If you want to use a separate dataset for prediction, point `--test_path` to it. The original `--data_path` argument becomes less relevant in `predict_only` mode if `--test_path` is specified for the actual prediction data. The script currently uses `args.test_path` for loading prediction data.
 
-### Example 4: Custom Configuration
-```bash
-# Create custom_config.json with your settings
-python main.py --data_path ./dataset --config ./custom_config.json
-```
+## Output
 
-## 🔧 Advanced Features
+The framework generates the following outputs in the specified output directory:
+-   `data_analysis.json`: Statistics and analysis of the dataset.
+-   `data_distribution.png`: Visualization of data distributions.
+-   `final_run_config.json`: The exact configuration used for the run.
+-   `best_model.pth`: Saved weights of the best trained model.
+-   `training_history.json`: Log of training metrics (loss, accuracy, etc.).
+-   `training_history.png`: Plot of training history.
+-   `predictions.csv`: Predictions made on the test set.
 
-### 1. Model Ensemble
-```python
-# Train multiple models with different configurations
-models = []
-for backbone in ['resnet18', 'resnet50', 'efficientnet_b0']:
-    config['backbone'] = backbone
-    model = create_model_from_config(config, num_classes)
-    # Train model...
-    models.append(model)
+## Customization
 
-# Ensemble predictions
-ensemble_predictions = torch.stack([model(x) for model in models]).mean(0)
-```
+-   **Model Architecture**: Modify `hidden_dims` and `dropout` in the config file. For more advanced changes, edit `MLPClassifier` in `src/models/architectures.py`.
+-   **Data Handling**: Adjust `feature_columns`, `target_column`, and `normalize` in the config. For custom preprocessing, extend `TabularDataset` in `src/data/dataset.py`.
+-   **Training Process**: Tune hyperparameters like `learning_rate`, `batch_size`, `num_epochs`, and configure `optimizer_config`, `scheduler_config`, `early_stopping` in the config file. Modify `train_model` in `src/utils/training.py` for deeper changes.
 
-### 2. Custom Data Preprocessing
-```python
-from src.data.dataset import FlexibleImageDataset
-from torchvision import transforms
-
-# Custom transform pipeline
-custom_transform = transforms.Compose([
-    transforms.Resize((256, 256)),
-    transforms.RandomCrop(224),
-    transforms.ColorJitter(brightness=0.2),
-    transforms.ToTensor(),
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-])
-
-dataset = FlexibleImageDataset(data_path="./data", transform=custom_transform)
-```
-
-### 3. Custom Model Architecture
-```python
-from src.models.architectures import FlexibleImageClassifier
-
-# Custom classifier head
-custom_model = FlexibleImageClassifier(
-    num_classes=10,
-    backbone='resnet50',
-    classifier_hidden_dims=[512, 256, 128]
-)
-```
-
-## 🎯 Quiz-Specific Tips
-
-1. **Unknown Data Type**: The framework will analyze and recommend optimal settings
-2. **Limited Time**: Use `--analyze_only` first to understand your data quickly
-3. **Memory Constraints**: Reduce `batch_size` in configuration
-4. **Quick Testing**: Set `num_epochs` to 5-10 for rapid prototyping
-5. **Best Performance**: Use recommended configurations but enable early stopping
-
-## 🚨 Troubleshooting
-
-### Common Issues
-
-1. **Out of Memory**: Reduce batch size or use smaller model
-```python
-config['batch_size'] = 16  # Reduce from 32
-config['backbone'] = 'resnet18'  # Instead of resnet50
-```
-
-2. **Slow Training**: Enable mixed precision or reduce model size
-```python
-# Add to training config
-config['mixed_precision'] = True
-```
-
-3. **Poor Performance**: Check data quality and try different architectures
-```python
-# For imbalanced datasets
-config['class_weights'] = True
-```
-
-## 📝 Submission Formats
-
-The framework supports multiple submission formats:
-
-- **Simple**: Plain text file with predictions
-- **Kaggle**: CSV with id and prediction columns
-- **Indexed**: CSV with custom column names
-
-```bash
-python main.py --data_path ./test_data --predict_only --submission_format kaggle
-```
-
-## 🤝 Contributing
-
-The framework follows functional programming principles:
-
-1. **Pure Functions**: Functions should be side-effect free when possible
-2. **Modularity**: Each module has a single responsibility
-3. **Immutability**: Avoid modifying input parameters
-4. **Composability**: Functions should be easily combinable
-
-## 📚 References
-
-- PyTorch Documentation: https://pytorch.org/docs/
-- Transformers Library: https://huggingface.co/transformers/
-- Transfer Learning Guide: https://pytorch.org/tutorials/beginner/transfer_learning_tutorial.html
-
-## 🏆 Performance Tips
-
-1. **Use Transfer Learning**: Pre-trained models often perform better
-2. **Data Augmentation**: Automatically applied for image data
-3. **Early Stopping**: Prevents overfitting and saves time
-4. **Proper Validation**: Framework automatically creates validation splits
-5. **Hyperparameter Tuning**: Start with recommended configs, then fine-tune
-
----
-
-**Happy Learning!** 🎓
-
-For questions or issues, check the example notebook or analyze your data first using `--analyze_only` flag. 
+This framework is designed to be a starting point for MLP-based deep learning tasks on tabular data.

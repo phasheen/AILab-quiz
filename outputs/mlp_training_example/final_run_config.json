@@ -1,10 +1,15 @@
 {
-  "data_type": "image",
-  "model_type": "image_classifier",
-  "backbone": "resnet18",
-  "pretrained": true,
-  "freeze_backbone": true,
-  "classifier_hidden_dims": [256, 128],
+  "data_type": "tabular",
+  "model_type": "mlp",
+  "task_type": "classification",
+  "target_column": "target",
+  "feature_columns": null,
+  "normalize": true,
+  "hidden_dims": [
+    128,
+    64
+  ],
+  "dropout": 0.3,
   "batch_size": 32,
   "learning_rate": 0.001,
   "num_epochs": 50,
@@ -15,7 +20,7 @@
   },
   "scheduler_config": {
     "scheduler_type": "step",
-    "step_size": 20,
+    "step_size": 15,
     "gamma": 0.1
   },
   "early_stopping": {
@@ -26,6 +31,7 @@
   "train_ratio": 0.7,
   "val_ratio": 0.15,
   "test_ratio": 0.15,
-  "num_workers": 4,
-  "task_type": "classification"
-} 
+  "num_workers": 0,
+  "input_dim": null,
+  "num_classes": null
+}

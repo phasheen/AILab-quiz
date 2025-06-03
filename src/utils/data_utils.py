@@ -1,6 +1,7 @@
 """
 Data utility functions for preprocessing and data handling.
 Functional programming approach for modularity and reusability.
+Focused on tabular data for MLP tasks.
 """
 
 import os
@@ -18,118 +19,83 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 
-def detect_data_type(data_path: str) -> str:
-    """Auto-detect data type based on file structure."""
+def load_and_analyze_data(data_path: str, data_type: str = 'tabular', target_column: Optional[str] = None) -> Dict[str, Any]:
+    """Load and analyze tabular dataset to provide insights."""
+    if data_type != 'tabular':
+        raise ValueError(f"Only 'tabular' data type is supported. Got: {data_type}")
+    
+    return _analyze_tabular_data(data_path, target_column)
+
+
+def _analyze_tabular_data(data_path: str, target_column: Optional[str] = None) -> Dict[str, Any]:
+    """Analyze tabular dataset."""
     data_path = Path(data_path)
     
-    # Check for image files
-    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff'}
-    has_images = any(
-        f.suffix.lower() in image_extensions 
-        for f in data_path.rglob('*') if f.is_file()
-    )
-    
-    # Check for text/CSV files
-    text_extensions = {'.csv', '.txt', '.json'}
-    has_text = any(
-        f.suffix.lower() in text_extensions 
-        for f in data_path.rglob('*') if f.is_file()
-    )
-    
-    if has_images:
-        return 'image'
-    elif has_text:
-        # Try to determine if it's text classification or tabular
+    # Handle both file path and directory path
+    if data_path.is_file() and data_path.suffix == '.csv':
+        csv_file = data_path
+    else:
         csv_files = list(data_path.glob('*.csv'))
-        if csv_files:
-            df = pd.read_csv(csv_files[0])
-            text_columns = [col for col in df.columns 
-                          if df[col].dtype == 'object' and 
-                          df[col].str.len().mean() > 50]  # Likely text
-            if text_columns:
-                return 'text'
-            else:
-                return 'tabular'
+        if not csv_files:
+            return {'error': 'No CSV files found', 'data_type': 'tabular'}
+        csv_file = csv_files[0]
     
-    return 'unknown'
-
-
-def load_and_analyze_data(data_path: str) -> Dict[str, Any]:
-    """Load and analyze dataset to provide insights."""
-    data_type = detect_data_type(data_path)
-    analysis = {'data_type': data_type}
-    
-    if data_type == 'image':
-        analysis.update(_analyze_image_data(data_path))
-    elif data_type in ['text', 'tabular']:
-        analysis.update(_analyze_tabular_data(data_path))
-    
-    return analysis
-
-
-def _analyze_image_data(data_path: str) -> Dict[str, Any]:
-    """Analyze image dataset structure."""
-    data_path = Path(data_path)
-    image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff'}
-    
-    # Count images by class (if organized in folders)
-    class_counts = {}
-    total_images = 0
-    
-    for class_dir in data_path.iterdir():
-        if class_dir.is_dir():
-            count = len([f for f in class_dir.iterdir() 
-                        if f.suffix.lower() in image_extensions])
-            if count > 0:
-                class_counts[class_dir.name] = count
-                total_images += count
-    
-    # If no class structure, count all images
-    if not class_counts:
-        all_images = [f for f in data_path.rglob('*') 
-                     if f.suffix.lower() in image_extensions]
-        total_images = len(all_images)
-    
-    return {
-        'num_classes': len(class_counts) if class_counts else 1,
-        'class_counts': class_counts,
-        'total_images': total_images,
-        'balanced': _check_balance(class_counts) if class_counts else True
-    }
-
-
-def _analyze_tabular_data(data_path: str) -> Dict[str, Any]:
-    """Analyze tabular/text dataset."""
-    data_path = Path(data_path)
-    csv_files = list(data_path.glob('*.csv'))
-    
-    if not csv_files:
-        return {'error': 'No CSV files found'}
-    
-    df = pd.read_csv(csv_files[0])
+    try:
+        df = pd.read_csv(csv_file)
+    except Exception as e:
+        return {'error': f'Error reading CSV: {e}', 'data_type': 'tabular'}
     
     # Basic stats
     analysis = {
+        'data_type': 'tabular',
         'num_samples': len(df),
         'num_features': len(df.columns),
         'columns': df.columns.tolist(),
         'missing_values': df.isnull().sum().to_dict(),
-        'data_types': df.dtypes.to_dict()
+        'data_types': df.dtypes.astype(str).to_dict()  # Convert to string for JSON serialization
     }
     
-    # Check for target column
-    possible_targets = ['label', 'target', 'class', 'y']
-    target_col = None
-    for col in possible_targets:
-        if col in df.columns:
-            target_col = col
-            break
+    # Determine target column
+    if target_column and target_column in df.columns:
+        actual_target_col = target_column
+    else:
+        # Auto-detect target column
+        possible_targets = ['label', 'target', 'class', 'y']
+        actual_target_col = None
+        for col in possible_targets:
+            if col in df.columns:
+                actual_target_col = col
+                break
+        
+        if actual_target_col is None and target_column:
+            print(f"Warning: Specified target column '{target_column}' not found. Available columns: {df.columns.tolist()}")
+            # Use the target_column anyway if specified, even if not found (will cause error later)
+            actual_target_col = target_column
     
-    if target_col:
-        analysis['target_column'] = target_col
-        analysis['num_classes'] = df[target_col].nunique()
-        analysis['class_distribution'] = df[target_col].value_counts().to_dict()
-        analysis['balanced'] = _check_balance(analysis['class_distribution'])
+    if actual_target_col and actual_target_col in df.columns:
+        analysis['target_column'] = actual_target_col
+        target_series = df[actual_target_col]
+        analysis['num_classes'] = target_series.nunique()
+        
+        # Determine if likely classification or regression
+        if pd.api.types.is_numeric_dtype(target_series) and target_series.nunique() > 20:
+            analysis['task_type'] = 'regression'
+            analysis['target_range'] = [float(target_series.min()), float(target_series.max())]
+            analysis['target_mean'] = float(target_series.mean())
+            analysis['target_std'] = float(target_series.std())
+        else:
+            analysis['task_type'] = 'classification'
+            analysis['class_distribution'] = target_series.value_counts().to_dict()
+            analysis['balanced'] = _check_balance(analysis['class_distribution'])
+    else:
+        print(f"Warning: No target column found. Dataset analysis may be incomplete.")
+    
+    # Count numeric features for model architecture recommendations
+    numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+    if actual_target_col and actual_target_col in numeric_cols:
+        numeric_cols.remove(actual_target_col)
+    analysis['num_numeric_features'] = len(numeric_cols)
+    analysis['numeric_columns'] = numeric_cols
     
     return analysis
 
@@ -166,7 +132,7 @@ def create_data_splits(dataset,
 
 def create_data_loaders(train_dataset, val_dataset, test_dataset,
                        batch_size: int = 32,
-                       num_workers: int = 4,
+                       num_workers: int = 0,  # Changed default to 0 for simpler setup
                        pin_memory: bool = True) -> Tuple[DataLoader, DataLoader, DataLoader]:
     """Create data loaders for training."""
     train_loader = DataLoader(
@@ -249,23 +215,29 @@ def load_preprocessors(save_path: str) -> Dict:
 
 
 def visualize_data_distribution(data_analysis: Dict[str, Any], 
-                               save_path: Optional[str] = None) -> None:
-    """Visualize data distribution and characteristics."""
-    data_type = data_analysis['data_type']
+                               save_path: Optional[str] = None,
+                               target_column: Optional[str] = None) -> None:
+    """Visualize data distribution for tabular data."""
+    data_type = data_analysis.get('data_type', 'tabular')
     
-    if data_type == 'image' and 'class_counts' in data_analysis:
-        _plot_class_distribution(data_analysis['class_counts'], 
-                                'Image Classes', save_path)
+    if data_type != 'tabular':
+        print(f"Visualization not supported for data_type: {data_type}")
+        return
     
-    elif data_type in ['text', 'tabular'] and 'class_distribution' in data_analysis:
+    # Plot class distribution if it's classification
+    if 'class_distribution' in data_analysis:
         _plot_class_distribution(data_analysis['class_distribution'], 
                                 'Class Distribution', save_path)
+    elif data_analysis.get('task_type') == 'regression' and 'target_range' in data_analysis:
+        _plot_regression_target_distribution(data_analysis, save_path)
+    else:
+        print("No suitable data distribution to visualize.")
 
 
 def _plot_class_distribution(class_counts: Dict[str, int], 
                             title: str, 
                             save_path: Optional[str] = None) -> None:
-    """Plot class distribution."""
+    """Plot class distribution for classification."""
     plt.figure(figsize=(10, 6))
     
     classes = list(class_counts.keys())
@@ -280,6 +252,33 @@ def _plot_class_distribution(class_counts: Dict[str, int],
     
     if save_path:
         plt.savefig(save_path)
+        print(f"Class distribution plot saved to {save_path}")
+    plt.show()
+
+
+def _plot_regression_target_distribution(data_analysis: Dict[str, Any], 
+                                        save_path: Optional[str] = None) -> None:
+    """Plot target distribution for regression."""
+    plt.figure(figsize=(10, 6))
+    
+    # For regression, we can't plot the actual distribution without the data
+    # So we just show the range and basic stats
+    target_range = data_analysis.get('target_range', [0, 1])
+    target_mean = data_analysis.get('target_mean', 0.5)
+    target_std = data_analysis.get('target_std', 0.1)
+    
+    plt.text(0.1, 0.8, f"Target Statistics", fontsize=14, fontweight='bold', transform=plt.gca().transAxes)
+    plt.text(0.1, 0.7, f"Range: [{target_range[0]:.3f}, {target_range[1]:.3f}]", fontsize=12, transform=plt.gca().transAxes)
+    plt.text(0.1, 0.6, f"Mean: {target_mean:.3f}", fontsize=12, transform=plt.gca().transAxes)
+    plt.text(0.1, 0.5, f"Std: {target_std:.3f}", fontsize=12, transform=plt.gca().transAxes)
+    plt.text(0.1, 0.4, f"Task Type: Regression", fontsize=12, transform=plt.gca().transAxes)
+    
+    plt.title("Target Variable Analysis (Regression)")
+    plt.axis('off')
+    
+    if save_path:
+        plt.savefig(save_path)
+        print(f"Target distribution analysis saved to {save_path}")
     plt.show()
 
 
@@ -290,7 +289,10 @@ def create_submission_file(predictions: np.ndarray,
     
     if submission_format == 'simple':
         # Simple format: just predictions
-        np.savetxt(output_file, predictions, fmt='%d')
+        if predictions.ndim == 1:
+            np.savetxt(output_file, predictions, fmt='%g')  # Use %g for both int and float
+        else:
+            np.savetxt(output_file, predictions, fmt='%g')
         
     elif submission_format == 'kaggle':
         # Kaggle format: id, prediction
@@ -304,7 +306,7 @@ def create_submission_file(predictions: np.ndarray,
         # Indexed format with custom column names
         df = pd.DataFrame({
             'sample_id': range(len(predictions)),
-            'predicted_class': predictions
+            'predicted_value': predictions  # More generic name for regression/classification
         })
         df.to_csv(output_file, index=False)
     
@@ -312,47 +314,31 @@ def create_submission_file(predictions: np.ndarray,
 
 
 def get_recommended_config(data_analysis: Dict[str, Any]) -> Dict[str, Any]:
-    """Get recommended configuration based on data analysis."""
-    data_type = data_analysis['data_type']
-    config = {'data_type': data_type}
+    """Get recommended configuration based on data analysis for MLP models."""
+    data_type = data_analysis.get('data_type', 'tabular')
     
-    if data_type == 'image':
-        num_classes = data_analysis.get('num_classes', 2)
-        total_images = data_analysis.get('total_images', 1000)
-        
-        config.update({
-            'model_type': 'image_classifier',
-            'backbone': 'resnet18' if total_images < 10000 else 'resnet50',
-            'batch_size': 32 if total_images < 5000 else 64,
-            'learning_rate': 1e-3,
-            'num_epochs': 50 if total_images < 5000 else 100,
-            'early_stopping': {'patience': 10}
-        })
-        
-    elif data_type == 'text':
-        num_samples = data_analysis.get('num_samples', 1000)
-        
-        config.update({
-            'model_type': 'text_classifier',
-            'model_name': 'bert-base-uncased',
-            'max_length': 256,
-            'batch_size': 16 if num_samples < 10000 else 32,
-            'learning_rate': 2e-5,
-            'num_epochs': 10,
-            'early_stopping': {'patience': 3}
-        })
-        
-    elif data_type == 'tabular':
-        num_features = data_analysis.get('num_features', 10)
-        num_samples = data_analysis.get('num_samples', 1000)
-        
-        config.update({
-            'model_type': 'mlp',
-            'hidden_dims': [256, 128] if num_features < 50 else [512, 256, 128],
-            'batch_size': 64,
-            'learning_rate': 1e-3,
-            'num_epochs': 100,
-            'early_stopping': {'patience': 15}
-        })
+    if data_type != 'tabular':
+        raise ValueError(f"Only 'tabular' data type is supported. Got: {data_type}")
+    
+    num_features = data_analysis.get('num_numeric_features', data_analysis.get('num_features', 10))
+    num_samples = data_analysis.get('num_samples', 1000)
+    task_type = data_analysis.get('task_type', 'classification')
+    
+    config = {
+        'data_type': 'tabular',
+        'model_type': 'mlp',
+        'task_type': task_type,
+        'hidden_dims': [128, 64] if num_features < 50 else [256, 128, 64],
+        'dropout': 0.3 if num_samples < 5000 else 0.5,
+        'batch_size': 32 if num_samples < 10000 else 64,
+        'learning_rate': 1e-3,
+        'num_epochs': 50 if num_samples < 5000 else 100,
+        'early_stopping': {'patience': 10 if num_samples < 5000 else 15},
+        'normalize': True
+    }
+    
+    # Add target column if detected
+    if 'target_column' in data_analysis:
+        config['target_column'] = data_analysis['target_column']
     
     return config 

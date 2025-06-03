@@ -1,0 +1,42 @@
+{
+  "data_type": "tabular",
+  "num_samples": 15,
+  "num_features": 5,
+  "columns": [
+    "feature1",
+    "feature2",
+    "feature3",
+    "feature4",
+    "target"
+  ],
+  "missing_values": {
+    "feature1": 0,
+    "feature2": 0,
+    "feature3": 0,
+    "feature4": 0,
+    "target": 0
+  },
+  "data_types": {
+    "feature1": "float64",
+    "feature2": "float64",
+    "feature3": "float64",
+    "feature4": "float64",
+    "target": "int64"
+  },
+  "target_column": "target",
+  "num_classes": 3,
+  "task_type": "classification",
+  "class_distribution": {
+    "0": 5,
+    "1": 5,
+    "2": 5
+  },
+  "balanced": true,
+  "num_numeric_features": 4,
+  "numeric_columns": [
+    "feature1",
+    "feature2",
+    "feature3",
+    "feature4"
+  ]
+}

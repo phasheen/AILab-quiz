@@ -1,32 +1,37 @@
 {
   "data_type": "tabular",
   "model_type": "mlp",
-  "hidden_dims": [512, 256, 128],
+  "task_type": "classification",
+  "target_column": "target",
+  "feature_columns": null,
+  "normalize": true,
+  "hidden_dims": [
+    128,
+    64
+  ],
   "dropout": 0.3,
-  "batch_size": 64,
+  "batch_size": 32,
   "learning_rate": 0.001,
-  "num_epochs": 100,
+  "num_epochs": 50,
   "optimizer_config": {
     "optimizer_type": "adam",
     "learning_rate": 0.001,
     "weight_decay": 0.0001
   },
   "scheduler_config": {
-    "scheduler_type": "plateau",
-    "patience": 10,
-    "factor": 0.5
+    "scheduler_type": "step",
+    "step_size": 15,
+    "gamma": 0.1
   },
   "early_stopping": {
-    "patience": 15,
+    "patience": 10,
     "min_delta": 0.001,
     "restore_best_weights": true
   },
   "train_ratio": 0.7,
   "val_ratio": 0.15,
   "test_ratio": 0.15,
-  "num_workers": 4,
-  "task_type": "classification",
-  "target_column": "target",
-  "normalize": true,
-  "scaling_method": "standard"
-} 
+  "num_workers": 0,
+  "input_dim": null,
+  "num_classes": null
+}
